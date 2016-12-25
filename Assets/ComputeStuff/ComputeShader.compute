@@ -1,0 +1,94 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#define thread_group_size_x 5
+#define thread_group_size_y 5
+#define thread_group_size_z 5
+
+#define group_size_x 5
+#define group_size_y 5
+#define group_size_z 5
+
+struct positionStruct
+{
+	float3 pos;
+};
+
+//A constant buffer struct that holds a time variable sent from Unity
+struct timeStruct
+{
+	float t;
+};
+
+struct selectionStruct
+{
+	int sel;
+};
+
+
+//Compute Buffers
+RWStructuredBuffer<positionStruct> positionBuffer;
+RWStructuredBuffer<timeStruct> timeBuffer;
+RWStructuredBuffer<selectionStruct> selectionBuffer;
+
+//Thomas Attractor
+float3 Thomas(int idx)
+{
+
+	float i = -0.19f;
+
+	float3 position = positionBuffer[idx].pos;
+	float x = position.x;
+	float y = position.y;
+	float z = position.z;
+
+	float dx = (i * x) + sin(y);
+	float dy = (i * y) + sin(z);
+	float dz = (i * z) + sin(x);
+
+	position.x = (dx * timeBuffer[0].t) + x;
+	position.y = (dy * timeBuffer[0].t) + y;
+	position.z = (dz * timeBuffer[0].t) + z;
+
+	return position;
+}
+
+//Lorenz Attractor
+float3 Lorenz(int idx)
+{
+	float o = 10.0f;
+	float p = 28.0f;
+	float b = 8 / 3;
+
+	float3 position = positionBuffer[idx].pos;
+	float x = position.x;
+	float y = position.y;
+	float z = position.z;
+
+	float dx = o * (y - x);
+	float dy = x * (p - z);
+	float dz = x * y - b * z;
+
+	position.x = (dx * timeBuffer[0].t) + x;
+	position.y = (dy * timeBuffer[0].t) + y;
+	position.z = (dz * timeBuffer[0].t) + z;
+
+	return position;
+}
+
+[numthreads(thread_group_size_x, thread_group_size_y, thread_group_size_z)]
+void CSMain(uint grpID : SV_GroupID, uint3 id : SV_DispatchThreadID, uint3 grpTID : SV_GroupThreadID, uint grpIdx : SV_GroupIndex)
+{
+	int idx = id.x + (id.y * thread_group_size_x * group_size_x) + (id.z * thread_group_size_x * group_size_y * thread_group_size_y * group_size_z);
+
+	if (selectionBuffer[0].sel == 1)
+	{
+		positionBuffer[idx].pos = Thomas(idx);
+	}
+	else if (selectionBuffer[0].sel == 0)
+	{
+		positionBuffer[idx].pos = Lorenz(idx);
+	}
+	
+
+}

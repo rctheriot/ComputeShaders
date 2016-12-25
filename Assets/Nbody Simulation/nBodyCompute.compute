@@ -1,0 +1,81 @@
+﻿
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#define thread_group_size_x 5
+#define thread_group_size_y 4
+#define thread_group_size_z 4
+
+#define group_size_x 4
+#define group_size_y 4
+#define group_size_z 4
+
+struct positionStruct
+{
+	float3 pos;
+};
+
+struct massStruct
+{
+	float mass;
+};
+
+struct velStruct
+{
+	float3 velocity;
+};
+
+struct timeStruct
+{
+	float t;
+};
+
+
+//Compute Buffers
+RWStructuredBuffer<positionStruct> positionBuffer;
+RWStructuredBuffer<positionStruct> lastPosition;
+RWStructuredBuffer<massStruct> massBuffer;
+RWStructuredBuffer<velStruct> velocityBuffer;
+RWStructuredBuffer<timeStruct> timeBuffer;
+
+float3 nBodySim(int idx)
+{
+	float3 currentPos = positionBuffer[idx].pos;
+	float idxMass = massBuffer[idx].mass;
+	float gravC = 0.0000000000674;
+
+	float3 forceVector = float3(0, 0, 0);
+
+
+	for (int i = idx; i < 5120; i++)
+	{
+		if (idx != i)
+		{
+			
+			float3 dir = normalize(positionBuffer[i].pos - currentPos);
+			float dist = distance(positionBuffer[i].pos, currentPos);
+
+			float forceMag = gravC * ((idxMass * massBuffer[i].mass) / (dist * dist));
+			float3 force = dir * forceMag;
+
+			forceVector += force;
+		}
+	}
+
+	
+	lastPosition[idx].pos = currentPos;
+	float3 retPos = (currentPos + forceVector) + velocityBuffer[idx].velocity;
+	velocityBuffer[idx].velocity = retPos - lastPosition[idx].pos;
+	return retPos;
+	
+
+}
+
+[numthreads(thread_group_size_x, thread_group_size_y, thread_group_size_z)]
+void CSMain(uint grpID : SV_GroupID, uint3 id : SV_DispatchThreadID, uint3 grpTID : SV_GroupThreadID, uint grpIdx : SV_GroupIndex)
+{
+	int idx = id.x + (id.y * thread_group_size_x * group_size_x) + (id.z * thread_group_size_x * group_size_y * thread_group_size_y * group_size_z);
+
+	positionBuffer[idx].pos = nBodySim(idx);
+
+}
